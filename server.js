@@ -256,6 +256,33 @@ io.on("connection", (socket) => {
     endGame(roomCode, winnerName);
   });
 
+  // ── HOST starts next round ─────────────────────────────────────────────────
+  socket.on("start-next-round", ({ roomCode, question, timeLimit, winCondition, roundIndex }) => {
+    const room = rooms[roomCode];
+    if (!room || socket.id !== room.host) return;
+
+    room.question = question;
+    room.timeLimit = timeLimit || 120;
+    room.winCondition = winCondition || "first";
+    room.submissions = {};
+    room.finished = false;
+    if (room.timerInterval) clearInterval(room.timerInterval);
+
+    io.to(roomCode).emit("next-round-starting", { question, timeLimit, winCondition, roundIndex });
+
+    // Countdown then start
+    let count = 3;
+    const countdown = setInterval(() => {
+      io.to(roomCode).emit("countdown", { count });
+      count--;
+      if (count < 0) {
+        clearInterval(countdown);
+        io.to(roomCode).emit("game-started");
+        startRoomTimer(roomCode);
+      }
+    }, 1000);
+  });
+
   // ── HOST ends game manually ────────────────────────────────────────────────
   socket.on("end-game", ({ roomCode }) => {
     const room = rooms[roomCode];
