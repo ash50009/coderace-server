@@ -112,12 +112,23 @@ function endGame(roomCode, winnerName) {
   io.to(roomCode).emit("game-over", { winner: winnerName, results });
 }
 
+function genRoomCode() {
+  const words = ["RACE","CODE","HACK","LOOP","FUNC","BYTE","DATA","NULL"];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(Math.random() * 90) + 10;
+  return word + "-" + num;
+}
+
 // ── Socket events ──────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log("Socket connected:", socket.id);
 
   // ── HOST creates a room ────────────────────────────────────────────────────
-  socket.on("create-room", ({ roomCode, question, timeLimit, winCondition }) => {
+  socket.on("create-room", ({ question, timeLimit, winCondition }) => {
+    // Generate a unique room code on the server
+    let roomCode;
+    do { roomCode = genRoomCode(); } while (rooms[roomCode]);
+
     rooms[roomCode] = {
       host: socket.id,
       players: {},
