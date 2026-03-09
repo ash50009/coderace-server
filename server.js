@@ -226,26 +226,35 @@ io.on("connection", (socket) => {
 
     const playerName = socket.playerName;
     if (!playerName) return;
-
-    // Don't allow double submit
-    if (room.submissions[playerName]) return;
+    if (room.submissions[playerName]) return; // no double submit
 
     room.submissions[playerName] = { answer, timeLeft, timestamp: Date.now() };
-
     console.log(`${playerName} submitted in room ${roomCode}`);
 
-    // Tell everyone this player submitted (for live leaderboard)
+    const totalSubmissions = Object.keys(room.submissions).length;
+    const totalPlayers = Object.keys(room.players).length;
+
+    // Tell everyone this player submitted
     io.to(roomCode).emit("player-submitted", {
-      playerName,
-      timeLeft,
-      totalSubmissions: Object.keys(room.submissions).length,
-      totalPlayers: Object.keys(room.players).length
+      playerName, timeLeft, totalSubmissions, totalPlayers
     });
 
-    // If win condition is "first", end immediately
-    if (room.winCondition === "first" && !room.finished) {
+    // Auto-end if everyone submitted
+    if (totalSubmissions >= totalPlayers && !room.finished) {
       room.finished = true;
-      setTimeout(() => endGame(roomCode, playerName), 800);
+      clearInterval(room.timerInterval);
+      // Short delay so last submission toast shows
+      setTimeout(() => {
+        if (room.winCondition === "judge") {
+          io.to(room.host).emit("open-judge-panel", { submissions: room.submissions });
+          io.to(roomCode).emit("time-up", { message: "All submitted! Judge is reviewing..." });
+        } else {
+          // Best by most time left
+          const winner = Object.entries(room.submissions)
+            .sort((a, b) => b[1].timeLeft - a[1].timeLeft)[0][0];
+          endGame(roomCode, winner);
+        }
+      }, 800);
     }
   });
 
